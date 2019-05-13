@@ -45,21 +45,30 @@ func drawFeatures(img *gocv.Mat, features gocv.Mat, color color.RGBA) {
 	}
 }
 
-func matchFeatures(mapp Mapp, img gocv.Mat) []gocv.KeyPoint {
+func drawMatches(img *gocv.Mat, matches map[gocv.KeyPoint]gocv.KeyPoint, color color.RGBA) {
+	for u, v := range matches {
+		gocv.Line(img, image.Pt(int(u.X), int(u.Y)), image.Pt(int(v.X), int(v.Y)), color, 2)
+	}
+}
+
+func matchFeatures(mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]gocv.KeyPoint {
 	bf := gocv.NewBFMatcherWithParams(gocv.NormHamming, false)
 	defer bf.Close()
 
 	framesCount := len(mapp.Frames)
 	matches := bf.KnnMatch(mapp.Frames[framesCount-2].Des, mapp.Frames[framesCount-1].Des, 2)
 
-	rets := make([]gocv.KeyPoint, 2)
+	rets := make(map[gocv.KeyPoint]gocv.KeyPoint)
 	fmt.Println(len(matches))
 	for _, n := range matches {
 		if n[0].Distance < 0.75*n[1].Distance {
 			p1 := mapp.Frames[framesCount-2].KPS[n[0].QueryIdx]
 			p2 := mapp.Frames[framesCount-2].KPS[n[0].TrainIdx]
+			rets[p1] = p2
 		}
 	}
+
+	return rets
 }
 
 func main() {
@@ -91,7 +100,8 @@ func main() {
 
 	mapp := NewMap()
 	blue := color.RGBA{0, 0, 255, 0}
-	// red := color.RGBA{255, 0, 0, 0}
+	red := color.RGBA{255, 0, 0, 0}
+	green := color.RGBA{0, 255, 0, 0}
 
 	for {
 		if ok := video.Read(&img); !ok {
@@ -119,12 +129,13 @@ func main() {
 		framesCount := len(mapp.Frames)
 
 		if framesCount > 1 {
-			matchFeatures(mapp, img)
+			matches := matchFeatures(mapp, img)
+			drawMatches(&img, matches, red)
 		}
 
-		gocv.PutText(&img, fmt.Sprintf("Count: %d ", corners.Total()), image.Pt(10, 20), gocv.FontHersheyPlain, 1.2, color.RGBA{0, 255, 0, 0}, 2)
+		gocv.PutText(&img, fmt.Sprintf("Count: %d ", corners.Total()), image.Pt(10, 20), gocv.FontHersheyPlain, 1.2, green, 2)
 
-		time.Sleep(time.Second / 2)
+		time.Sleep(time.Second / 20)
 		window.IMShow(img)
 		if window.WaitKey(1) >= 0 {
 			break
