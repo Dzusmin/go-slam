@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"strconv"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -40,7 +41,7 @@ func drawFeatures(img *gocv.Mat, features gocv.Mat, color color.RGBA) {
 			x := int(v[0])
 			y := int(v[1])
 
-			gocv.Circle(img, image.Pt(x, y), 5, color, 2)
+			gocv.Circle(img, image.Pt(x, y), 2, color, 2)
 		}
 	}
 }
@@ -58,12 +59,13 @@ func matchFeatures(mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]gocv.KeyPoint {
 	framesCount := len(mapp.Frames)
 	matches := bf.KnnMatch(mapp.Frames[framesCount-2].Des, mapp.Frames[framesCount-1].Des, 2)
 
+	// fmt.Println("Total matches:", len(matches))
 	rets := make(map[gocv.KeyPoint]gocv.KeyPoint)
-	fmt.Println(len(matches))
 	for _, n := range matches {
-		if n[0].Distance < 0.75*n[1].Distance {
+		if n[0].Distance < 0.5*n[1].Distance {
 			p1 := mapp.Frames[framesCount-2].KPS[n[0].QueryIdx]
-			p2 := mapp.Frames[framesCount-2].KPS[n[0].TrainIdx]
+			p2 := mapp.Frames[framesCount-1].KPS[n[0].TrainIdx]
+
 			rets[p1] = p2
 		}
 	}
@@ -73,11 +75,26 @@ func matchFeatures(mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]gocv.KeyPoint {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("How to run:\n\tgo-slam [videofile]")
+		fmt.Println("How to run:\n\tgo-slam [videofile] [maxFeatures] [featuresQuality] [minDist]")
 		return
 	}
 
 	filename := os.Args[1]
+	maxFeatures := 3000
+	featuresQuality := 0.01
+	minDist := 3.0
+
+	if len(os.Args) >= 3 {
+		maxFeatures, _ = strconv.Atoi(os.Args[2])
+	}
+
+	if len(os.Args) >= 4 {
+		featuresQuality, _ = strconv.ParseFloat(os.Args[3], 64)
+	}
+
+	if len(os.Args) >= 5 {
+		minDist, _ = strconv.ParseFloat(os.Args[4], 64)
+	}
 
 	video, err := gocv.VideoCaptureFile(filename)
 	if err != nil {
@@ -115,11 +132,11 @@ func main() {
 
 		gocv.CvtColor(img, &dest, gocv.ColorBGRAToGray)
 
-		gocv.GoodFeaturesToTrack(dest, &corners, 5000, 0.01, 7.0)
-
+		gocv.GoodFeaturesToTrack(dest, &corners, maxFeatures, featuresQuality, minDist)
 		if corners.Empty() {
 			fmt.Println("No corners found")
 		} else {
+			fmt.Println("Features: ", corners.Total())
 			orb := gocv.NewORB()
 			kps, des := orb.DetectAndCompute(img, corners)
 			mapp.AddFrame(NewFrame(kps, des))
@@ -130,12 +147,14 @@ func main() {
 
 		if framesCount > 1 {
 			matches := matchFeatures(mapp, img)
+			fmt.Println("Matches: ", len(matches))
+			gocv.PutText(&img, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
 			drawMatches(&img, matches, red)
 		}
 
-		gocv.PutText(&img, fmt.Sprintf("Count: %d ", corners.Total()), image.Pt(10, 20), gocv.FontHersheyPlain, 1.2, green, 2)
+		gocv.PutText(&img, fmt.Sprintf("Features: %d ", corners.Total()), image.Pt(10, 20), gocv.FontHersheyPlain, 1.2, green, 2)
 
-		time.Sleep(time.Second / 20)
+		time.Sleep(time.Second / 200)
 		window.IMShow(img)
 		if window.WaitKey(1) >= 0 {
 			break
