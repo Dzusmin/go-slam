@@ -6,9 +6,9 @@ import (
 	"image/color"
 	"os"
 	"strconv"
-	"time"
 
 	"gocv.io/x/gocv"
+	"gocv.io/x/gocv/contrib"
 )
 
 type Frame struct {
@@ -33,16 +33,9 @@ func (m *Mapp) AddFrame(frame Frame) []Frame {
 	return m.Frames
 }
 
-func drawFeatures(img *gocv.Mat, features gocv.Mat, color color.RGBA) {
-	for i := 0; i < features.Rows(); i++ {
-		v := features.GetVecfAt(0, i)
-		// if circles are found
-		if len(v) > 1 {
-			x := int(v[0])
-			y := int(v[1])
-
-			gocv.Circle(img, image.Pt(x, y), 2, color, 2)
-		}
+func drawKPS(img *gocv.Mat, kps []gocv.KeyPoint, color color.RGBA) {
+	for _, kp := range kps {
+		gocv.Circle(img, image.Pt(int(kp.X), int(kp.Y)), 1, color, 2)
 	}
 }
 
@@ -52,23 +45,37 @@ func drawMatches(img *gocv.Mat, matches map[gocv.KeyPoint]gocv.KeyPoint, color c
 	}
 }
 
+func drawInofs(img *gocv.Mat, text string, org image.Point, color color.RGBA) {
+	gocv.PutText(img, text, org, gocv.FontHersheyPlain, 1.2, color, 2)
+}
+
+func detectFeatures(mapp Mapp, img gocv.Mat) Frame {
+	mask := gocv.NewMat()
+	surf := contrib.NewSIFT()
+	kps, des := surf.DetectAndCompute(img, mask)
+	fmt.Println("KPS: ", len(kps))
+	return NewFrame(kps, des)
+}
+
 func matchFeatures(mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]gocv.KeyPoint {
-	bf := gocv.NewBFMatcherWithParams(gocv.NormHamming, false)
+	bf := gocv.NewBFMatcherWithParams(gocv.NormL1, false)
 	defer bf.Close()
 
 	framesCount := len(mapp.Frames)
-	matches := bf.KnnMatch(mapp.Frames[framesCount-2].Des, mapp.Frames[framesCount-1].Des, 2)
+	matches := bf.KnnMatch(mapp.Frames[framesCount-1].Des, mapp.Frames[framesCount-2].Des, 2)
 
 	// fmt.Println("Total matches:", len(matches))
 	rets := make(map[gocv.KeyPoint]gocv.KeyPoint)
 	for _, n := range matches {
-		if n[0].Distance < 0.5*n[1].Distance {
-			p1 := mapp.Frames[framesCount-2].KPS[n[0].QueryIdx]
-			p2 := mapp.Frames[framesCount-1].KPS[n[0].TrainIdx]
+		if n[0].Distance < 0.4*n[1].Distance {
+			p1 := mapp.Frames[framesCount-1].KPS[n[0].QueryIdx]
+			p2 := mapp.Frames[framesCount-2].KPS[n[0].TrainIdx]
 
 			rets[p1] = p2
 		}
 	}
+
+	//TODO: filter kps with ransac
 
 	return rets
 }
@@ -80,21 +87,13 @@ func main() {
 	}
 
 	filename := os.Args[1]
-	maxFeatures := 3000
-	featuresQuality := 0.01
-	minDist := 3.0
 
+	scale := 0.5
 	if len(os.Args) >= 3 {
-		maxFeatures, _ = strconv.Atoi(os.Args[2])
+		scale, _ = strconv.ParseFloat(os.Args[2], 64)
 	}
 
-	if len(os.Args) >= 4 {
-		featuresQuality, _ = strconv.ParseFloat(os.Args[3], 64)
-	}
-
-	if len(os.Args) >= 5 {
-		minDist, _ = strconv.ParseFloat(os.Args[4], 64)
-	}
+	// app, _ := application.Create(application.Options{Title: "SLAM", Width: 800, Height: 600})
 
 	video, err := gocv.VideoCaptureFile(filename)
 	if err != nil {
@@ -109,11 +108,11 @@ func main() {
 	img := gocv.NewMat()
 	defer img.Close()
 
+	smaller := gocv.NewMat()
+	defer smaller.Close()
+
 	dest := gocv.NewMat()
 	defer dest.Close()
-
-	corners := gocv.NewMat()
-	defer corners.Close()
 
 	mapp := NewMap()
 	blue := color.RGBA{0, 0, 255, 0}
@@ -125,37 +124,31 @@ func main() {
 			fmt.Println("Error reading video from: ", filename)
 			return
 		}
+
 		if img.Empty() {
 			fmt.Println("Image from video: ", filename, "is empty")
 			continue
 		}
 
-		gocv.CvtColor(img, &dest, gocv.ColorBGRAToGray)
+		gocv.Resize(img, &smaller, image.Point{}, scale, scale, gocv.InterpolationDefault)
 
-		gocv.GoodFeaturesToTrack(dest, &corners, maxFeatures, featuresQuality, minDist)
-		if corners.Empty() {
-			fmt.Println("No corners found")
-		} else {
-			fmt.Println("Features: ", corners.Total())
-			orb := gocv.NewORB()
-			kps, des := orb.DetectAndCompute(img, corners)
-			mapp.AddFrame(NewFrame(kps, des))
-			drawFeatures(&img, corners, blue)
-		}
+		gocv.CvtColor(smaller, &dest, gocv.ColorBGRAToGray)
+
+		mapp.AddFrame(detectFeatures(mapp, dest))
+		drawKPS(&smaller, mapp.Frames[len(mapp.Frames)-1].KPS, blue)
 
 		framesCount := len(mapp.Frames)
-
 		if framesCount > 1 {
-			matches := matchFeatures(mapp, img)
+			matches := matchFeatures(mapp, smaller)
 			fmt.Println("Matches: ", len(matches))
-			gocv.PutText(&img, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
-			drawMatches(&img, matches, red)
+			gocv.PutText(&smaller, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
+			drawMatches(&smaller, matches, red)
 		}
 
-		gocv.PutText(&img, fmt.Sprintf("Features: %d ", corners.Total()), image.Pt(10, 20), gocv.FontHersheyPlain, 1.2, green, 2)
+		drawInofs(&smaller, fmt.Sprintf("KPS: %d ", len(mapp.Frames[len(mapp.Frames)-1].KPS)), image.Pt(10, 20), green)
 
-		time.Sleep(time.Second / 200)
-		window.IMShow(img)
+		// time.Sleep(time.Second / 200)
+		window.IMShow(smaller)
 		if window.WaitKey(1) >= 0 {
 			break
 		}
