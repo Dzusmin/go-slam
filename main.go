@@ -35,7 +35,8 @@ func (m *Mapp) AddFrame(frame Frame) []Frame {
 
 func drawKPS(img *gocv.Mat, kps []gocv.KeyPoint, color color.RGBA) {
 	for _, kp := range kps {
-		gocv.Circle(img, image.Pt(int(kp.X), int(kp.Y)), 1, color, 2)
+
+		gocv.Circle(img, image.Pt(int(kp.X), int(kp.Y)), 1, color, 1)
 	}
 }
 
@@ -64,14 +65,15 @@ func matchFeatures(mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]gocv.KeyPoint {
 	framesCount := len(mapp.Frames)
 	matches := bf.KnnMatch(mapp.Frames[framesCount-1].Des, mapp.Frames[framesCount-2].Des, 2)
 
-	// fmt.Println("Total matches:", len(matches))
 	rets := make(map[gocv.KeyPoint]gocv.KeyPoint)
-	for _, n := range matches {
-		if n[0].Distance < 0.4*n[1].Distance {
-			p1 := mapp.Frames[framesCount-1].KPS[n[0].QueryIdx]
-			p2 := mapp.Frames[framesCount-2].KPS[n[0].TrainIdx]
+	for _, m := range matches {
+		if m[0].Distance < 0.4*m[1].Distance {
+			p1 := mapp.Frames[framesCount-1].KPS[m[0].QueryIdx]
+			p2 := mapp.Frames[framesCount-2].KPS[m[0].TrainIdx]
 
 			rets[p1] = p2
+
+			// fmt.Println("Type of p2: ", reflect.TypeOf(p1))
 		}
 	}
 
@@ -116,6 +118,7 @@ func main() {
 
 	mapp := NewMap()
 	blue := color.RGBA{0, 0, 255, 0}
+	// violet := color.RGBA{255, 0, 255, 0}
 	red := color.RGBA{255, 0, 0, 0}
 	green := color.RGBA{0, 255, 0, 0}
 
