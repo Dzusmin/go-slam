@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"log"
 	"os"
 	"strconv"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"gocv.io/x/gocv"
-	"gocv.io/x/gocv/contrib"
 )
 
 type Frame struct {
@@ -34,10 +37,7 @@ func (m *Mapp) AddFrame(frame Frame) []Frame {
 }
 
 func drawKPS(img *gocv.Mat, kps []gocv.KeyPoint, color color.RGBA) {
-	for _, kp := range kps {
-
-		gocv.Circle(img, image.Pt(int(kp.X), int(kp.Y)), 1, color, 1)
-	}
+	gocv.DrawKeyPoints(*img, kps, img, color, gocv.DrawRichKeyPoints)
 }
 
 func drawMatches(img *gocv.Mat, matches map[gocv.KeyPoint]gocv.KeyPoint, color color.RGBA) {
@@ -50,9 +50,8 @@ func drawInofs(img *gocv.Mat, text string, org image.Point, color color.RGBA) {
 	gocv.PutText(img, text, org, gocv.FontHersheyPlain, 1.2, color, 2)
 }
 
-func detectFeatures(mapp Mapp, img gocv.Mat) Frame {
+func detectFeatures(surf *gocv.SIFT, mapp *Mapp, img gocv.Mat) Frame {
 	mask := gocv.NewMat()
-	surf := contrib.NewSIFT()
 	kps, des := surf.DetectAndCompute(img, mask)
 	fmt.Println("KPS: ", len(kps))
 	return NewFrame(kps, des)
@@ -90,12 +89,28 @@ func main() {
 
 	filename := os.Args[1]
 
-	scale := 0.5
+	scale := 0.25
 	if len(os.Args) >= 3 {
 		scale, _ = strconv.ParseFloat(os.Args[2], 64)
 	}
 
 	// app, _ := application.Create(application.Options{Title: "SLAM", Width: 800, Height: 600})
+
+	// currentTime := time.Now()
+
+	err := http.ListenAndServe("localhost:6060", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// f, err := os.Create("log/" + currentTime.Format("2006-01-02 15:04:05.000000000") + ".log")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer f.Close()
+
+	// pprof.StartCPUProfile(f)
+	// defer pprof.StopCPUProfile()
 
 	video, err := gocv.VideoCaptureFile(filename)
 	if err != nil {
@@ -122,6 +137,8 @@ func main() {
 	red := color.RGBA{255, 0, 0, 0}
 	green := color.RGBA{0, 255, 0, 0}
 
+	surf := gocv.NewSIFT()
+
 	for {
 		if ok := video.Read(&img); !ok {
 			fmt.Println("Error reading video from: ", filename)
@@ -135,16 +152,19 @@ func main() {
 
 		gocv.Resize(img, &smaller, image.Point{}, scale, scale, gocv.InterpolationDefault)
 
+		// gocv.FindHomography()
 		gocv.CvtColor(smaller, &dest, gocv.ColorBGRAToGray)
 
-		mapp.AddFrame(detectFeatures(mapp, dest))
+		mapp.AddFrame(detectFeatures(&surf, &mapp, dest))
 		drawKPS(&smaller, mapp.Frames[len(mapp.Frames)-1].KPS, blue)
 
 		framesCount := len(mapp.Frames)
 		if framesCount > 1 {
 			matches := matchFeatures(mapp, smaller)
+
 			fmt.Println("Matches: ", len(matches))
 			gocv.PutText(&smaller, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
+
 			drawMatches(&smaller, matches, red)
 		}
 
