@@ -142,9 +142,6 @@ func main() {
 	oldFrame := gocv.NewMat()
 	defer oldFrame.Close()
 
-	workFrame := gocv.NewMat()
-	defer workFrame.Close()
-
 	dest := gocv.NewMat()
 	defer dest.Close()
 

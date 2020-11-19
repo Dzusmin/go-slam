@@ -1,2 +1,2 @@
 main:
-	go build
+	go build -o go-slam

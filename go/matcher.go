@@ -25,6 +25,10 @@ func matchFeatures(matcher Matcher, mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]g
 	start := time.Now()
 
 	for _, n := range matches {
+		if len(n) <= 1 {
+			return rets
+		}
+
 		if n[0].Distance < 0.75*n[1].Distance {
 			p1 := mapp.Frames[framesCount-1].KPS[n[0].QueryIdx]
 			p2 := mapp.Frames[framesCount-2].KPS[n[0].TrainIdx]
