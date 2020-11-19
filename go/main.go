@@ -15,6 +15,27 @@ import (
 	"gocv.io/x/gocv"
 )
 
+type Vecb []uint8
+
+func GetVecbAt(m gocv.Mat, row int, col int) Vecb {
+	ch := m.Channels()
+	v := make(Vecb, ch)
+
+	for c := 0; c < ch; c++ {
+		v[c] = m.GetUCharAt(row, col*ch+c)
+	}
+
+	return v
+}
+
+func (v Vecb) SetVecbAt(m gocv.Mat, row int, col int) {
+	ch := m.Channels()
+
+	for c := 0; c < ch; c++ {
+		m.SetUCharAt(row, col*ch+c, v[c])
+	}
+}
+
 type Matcher interface {
 	KnnMatch(query, train gocv.Mat, k int) [][]gocv.DMatch
 	Close() error
@@ -128,25 +149,29 @@ func matchFeatures(matcher Matcher, mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]g
 	return betterRets
 }
 
-func findMask(new gocv.Mat, old gocv.Mat, mask *gocv.Mat) {
-	workFrameNew := gocv.NewMat()
-	defer workFrameNew.Close()
-	workFrameOld := gocv.NewMat()
-	defer workFrameOld.Close()
+func findMask(new gocv.Mat, old gocv.Mat, zeros *gocv.Mat) {
+	// newWorkFrame := gocv.NewMat()
+	// defer newWorkFrame.Close()
 
-	// gocv.AdaptiveThreshold(new, &workFrameNew, 255, gocv.AdaptiveThresholdGaussian, gocv.ThresholdBinary, 11, 2)
-	// gocv.AdaptiveThreshold(old, &workFrameOld, 255, gocv.AdaptiveThresholdGaussian, gocv.ThresholdBinary, 11, 2)
+	// oldWorkFrame := gocv.NewMat()
+	// defer oldWorkFrame.Close()
 
-	// gocv.Threshold(new, &workFrameNew, 127, 255, gocv.ThresholdTrunc)
-	// gocv.Threshold(old, &workFrameOld, 127, 255, gocv.ThresholdTrunc)
+	// gocv.CvtColor(new, &newWorkFrame, gocv.ColorBGRToHSVFull)
+	// gocv.CvtColor(old, &oldWorkFrame, gocv.ColorBGRToHSVFull)
 
-	gocv.AbsDiff(new, old, mask)
+	// mask := gocv.NewMat()
+	// defer mask.Close()
 
-	workFrameNew = mask.Clone()
+	// grayMask := gocv.NewMat()
+	// defer grayMask.Close()
+
+	// gocv.AbsDiff(newWorkFrame, oldWorkFrame, &mask)
+	// gocv.CvtColor(mask, &grayMask, gocv.ColorBGRToGray)
+
+	// gocv.AdaptiveThreshold(grayMask, zeros, 255, gocv.AdaptiveThresholdGaussian, gocv.ThresholdBinary, 11, 2)
 
 	//TODO:https://www.pyimagesearch.com/2017/06/19/image-difference-with-opencv-and-python/
 	//TODO:https://stackoverflow.com/questions/27035672/cv-extract-differences-between-two-images
-	gocv.Threshold(workFrameNew, mask, 50, 255, gocv.ThresholdBinary)
 }
 
 func main() {
@@ -227,6 +252,8 @@ func main() {
 
 	defer matcher.Close()
 
+	matches := make(map[gocv.KeyPoint]gocv.KeyPoint)
+
 	for {
 		framesCount := len(mapp.Frames)
 		now := time.Now()
@@ -244,32 +271,32 @@ func main() {
 		gocv.CvtColor(smaller, &dest, gocv.ColorBGRAToGray)
 
 		if framesCount > 1 {
-			findMask(dest, oldFrame, &mask)
+			findMask(smaller, oldFrame, &mask)
 		}
 
 		mapp.AddFrame(detectFeatures(&surf, &mask, &mapp, dest))
 		drawKPS(&smaller, mapp.Frames[len(mapp.Frames)-1].KPS, blue)
 		if framesCount > 1 {
-			matches := matchFeatures(matcher, mapp, smaller)
-
-			// fmt.Println("Matches: ", len(matches))
-			gocv.PutText(&smaller, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
-			drawMatches(&smaller, matches, red)
+			matches = matchFeatures(matcher, mapp, smaller)
 		}
 
+		oldFrame = smaller.Clone()
+
 		diff := time.Now().Sub(now)
+
+		fmt.Println("Matches: ", len(matches))
+		drawMatches(&smaller, matches, red)
+		gocv.PutText(&smaller, fmt.Sprintf("Matches: %d ", len(matches)), image.Pt(10, 40), gocv.FontHersheyPlain, 1.2, green, 2)
 		drawInofs(&smaller, fmt.Sprintf("KPS: %d ", len(mapp.Frames[len(mapp.Frames)-1].KPS)), image.Pt(10, 20), green)
 		drawInofs(&smaller, fmt.Sprintf("ms: %d ", diff.Milliseconds()), image.Pt(10, 60), green)
 
 		if framesCount > 1 {
-			time.Sleep(time.Second / 20)
+			// time.Sleep(time.Second * 10)
 
-			window.IMShow(mask)
+			window.IMShow(smaller)
 		}
 		if window.WaitKey(1) >= 0 {
 			break
 		}
-
-		oldFrame = dest.Clone()
 	}
 }
