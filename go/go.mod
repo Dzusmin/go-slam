@@ -1,4 +1,4 @@
-module github.com/Dzusmin/go-slam
+module github.com/Dzusmin/go-slam/go
 
 go 1.12
 
