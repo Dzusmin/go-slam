@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 
@@ -76,7 +77,7 @@ func (p *Problem) classifyInliers(model *mat64.Vector, sample []*mat64.Vector, m
 }
 
 // Estimate does the actual work of fitting.
-func (p *Problem) Estimate(maxIterations, sampleSize int, inliersRatioLimit float64, maxError float64, improveWithConsensusSet bool) (*mat64.Vector, []*mat64.Vector, []*mat64.Vector, float64) {
+func (p *Problem) Estimate(maxIterations, sampleSize int, inliersRatioLimit, maxError float64, improveWithConsensusSet bool) (*mat64.Vector, []*mat64.Vector, []*mat64.Vector, float64) {
 
 	var bestInliers []*mat64.Vector
 	var bestOutliers []*mat64.Vector
@@ -85,6 +86,7 @@ func (p *Problem) Estimate(maxIterations, sampleSize int, inliersRatioLimit floa
 
 	// Return Infinite Error, if datasize is smaller than sampleSize
 	if p.dataLength < sampleSize {
+		fmt.Println("some exit")
 		return bestModel, bestInliers, bestOutliers, bestError
 	}
 
