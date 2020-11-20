@@ -15,7 +15,7 @@ cv::RNG rng(12345);
 int main(int argc, char** argv)
 {
     cv::VideoCapture video;
-    video.open("videos/test_countryroad.mp4");
+    video.open("./../videos/rgbd_dataset_freiburg2_pioneer_slam3-rgb.avi");
 
     cv::Mat frame, oldFrame, mask, greyscaleFrame, desc, homographyMask;
     std::vector<cv::KeyPoint> kps;
@@ -123,8 +123,8 @@ int main(int argc, char** argv)
                             cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
             cv::imshow("Video", img_matches);
 
-            int i;
-            std::cin >> i;
+            // int i;
+            // std::cin >> i;
         }
 
         // int radius = 4;
