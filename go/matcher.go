@@ -19,7 +19,7 @@ func matchFeatures(matcher Matcher, mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]g
 
 	matches := matcher.KnnMatch(mapp.Frames[framesCount-1].Des, mapp.Frames[framesCount-2].Des, 2)
 
-	fmt.Println("Matching key points takes: ", time.Now().Sub(matchingStart).Nanoseconds())
+	fmt.Println("Matching key points takes: ", time.Since(matchingStart).Nanoseconds())
 	fmt.Println("Matchers before filtering: ", len(matches))
 
 	start := time.Now()
@@ -69,6 +69,6 @@ func matchFeatures(matcher Matcher, mapp Mapp, img gocv.Mat) map[gocv.KeyPoint]g
 
 	fmt.Println("Rets len: ", len(rets))
 	fmt.Println("Better rets len: ", len(betterRets))
-	fmt.Println("Filtering matches takes: ", time.Now().Sub(start).Nanoseconds())
+	fmt.Println("Filtering matches takes: ", time.Since(start).Nanoseconds())
 	return betterRets
 }

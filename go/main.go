@@ -69,31 +69,6 @@ func detectFeatures(matcher *gocv.ORB, mask *gocv.Mat, mapp *Mapp, img gocv.Mat)
 	return NewFrame(kps, des)
 }
 
-func findMask(new gocv.Mat, old gocv.Mat, zeros *gocv.Mat) {
-	// newWorkFrame := gocv.NewMat()
-	// defer newWorkFrame.Close()
-
-	// oldWorkFrame := gocv.NewMat()
-	// defer oldWorkFrame.Close()
-
-	// gocv.CvtColor(new, &newWorkFrame, gocv.ColorBGRToHSVFull)
-	// gocv.CvtColor(old, &oldWorkFrame, gocv.ColorBGRToHSVFull)
-
-	// mask := gocv.NewMat()
-	// defer mask.Close()
-
-	// grayMask := gocv.NewMat()
-	// defer grayMask.Close()
-
-	// gocv.AbsDiff(newWorkFrame, oldWorkFrame, &mask)
-	// gocv.CvtColor(mask, &grayMask, gocv.ColorBGRToGray)
-
-	// gocv.AdaptiveThreshold(grayMask, zeros, 255, gocv.AdaptiveThresholdGaussian, gocv.ThresholdBinary, 11, 2)
-
-	//TODO:https://www.pyimagesearch.com/2017/06/19/image-difference-with-opencv-and-python/
-	//TODO:https://stackoverflow.com/questions/27035672/cv-extract-differences-between-two-images
-}
-
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("How to run:\n\tgo-slam [videofile] [scale:float] [profiler:bool] [bfmatcher:bool]")
@@ -188,10 +163,6 @@ func main() {
 		gocv.Resize(img, &smaller, image.Point{}, scale, scale, gocv.InterpolationDefault)
 		gocv.CvtColor(smaller, &dest, gocv.ColorBGRAToGray)
 
-		if framesCount > 1 {
-			findMask(smaller, oldFrame, &mask)
-		}
-
 		mapp.AddFrame(detectFeatures(&surf, &mask, &mapp, dest))
 		drawKPS(&smaller, mapp.Frames[len(mapp.Frames)-1].KPS, blue)
 		if framesCount > 1 {
@@ -200,7 +171,7 @@ func main() {
 
 		oldFrame = smaller.Clone()
 
-		diff := time.Now().Sub(now)
+		diff := time.Since(now)
 
 		fmt.Println("Matches: ", len(matches))
 		drawMatches(&smaller, matches, red)
