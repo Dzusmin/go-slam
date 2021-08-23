@@ -126,6 +126,7 @@ func main() {
 	video, err := gocv.VideoCaptureFile(filename)
 	if err != nil {
 		fmt.Println("Error reading video from: ", filename)
+		fmt.Println(err)
 		return
 	}
 	defer video.Close()
